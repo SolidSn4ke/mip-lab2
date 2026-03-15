@@ -1,13 +1,12 @@
-module MonteCarlo (simpleMonteCarlo) where
+module MonteCarlo (simpleMonteCarlo, stratifiedMonteCarlo) where
 
-import System.Random (Random (randomR), newStdGen)
+import Control.Monad (replicateM)
+import System.Random (randomRIO)
 
 simpleMonteCarlo :: (Double -> Double) -> (Double, Double) -> IO Double
 simpleMonteCarlo f (a, b) = do
-    gen <- newStdGen
-    return $ (*) ((b - a) / 100000) $ sum $ map (\_ -> f . fst $ randomR (a, b) gen) [1 :: Integer .. 100000]
+    values <- replicateM 100000 (randomRIO (a, b))
+    return $ (*) ((b - a) / 100000) $ sum $ map f values
 
--- stratifiedMonteCarlo :: (Double -> Double) -> (Double, Double) -> Double -> IO Double
--- stratifiedMonteCarlo f (a, b) step = do
---     gen <- newStdGen
---     mapM_ (\x -> x) [simpleMonteCarlo f (a', a' + step) | a' <- [a, a + step .. b]]
+stratifiedMonteCarlo :: (Double -> Double) -> (Double, Double) -> Double -> IO Double
+stratifiedMonteCarlo f (a, b) step = sum <$> sequence [simpleMonteCarlo f (a', a' + step) | a' <- [a, a + step .. b - step]]
