@@ -14,21 +14,36 @@ stratifiedMonteCarlo f (a, b) step n = sum <$> sequence [simpleMonteCarlo f (a',
 importanceMonteCarlo :: (Double -> Double) -> (Double, Double) -> (Double -> Double) -> Int -> IO Double
 importanceMonteCarlo f (a, b) p n = do
     int <- simpleMonteCarlo p (a, b) n
-    xs <- replicateM n $ randomRIO (a, b)
-    return $ (*) (1 / fromIntegral n) $ sum [f x / (p x / int) | x <- xs]
+    taus <- replicateM n $ randomRIO (0 :: Double, 1)
+    let xi tau
+            | p 2 == 2 = sqrt $ tau * (b ** 2 - a ** 2) + a ** 2
+            | p 2 == 4 = flip (**) (1 / 3) $ tau * (b ** 3 - a ** 3) + a ** 3
+            | otherwise = flip (**) (1 / 4) $ tau * (b ** 4 - a ** 4) + a ** 4
+    return $ flip (/) (fromIntegral n) $ foldl (\acc t -> acc + f (xi t) / p (xi t) * int) 0 taus
 
 multiImportanceMonteCarlo :: (Double -> Double) -> (Double, Double) -> (Double -> Double) -> (Double -> Double) -> Int -> IO (Double, Double)
 multiImportanceMonteCarlo f (a, b) p1 p2 n = do
     int1 <- simpleMonteCarlo p1 (a, b) n
     int2 <- simpleMonteCarlo p2 (a, b) n
+    let xi p tau
+            | p 2 == 2 = sqrt $ tau * (b ** 2 - a ** 2) + a ** 2
+            | p 2 == 4 = flip (**) (1 / 3) $ tau * (b ** 3 - a ** 3) + a ** 3
+            | otherwise = flip (**) (1 / 4) $ tau * (b ** 4 - a ** 4) + a ** 4
     let p1' x = p1 x / int1
     let p2' x = p2 x / int2
-    let w1 x = p1' x / (p1' x + p2' x)
-    let w2 x = p2' x / (p1' x + p2' x)
-    let w1' x = p1' x ** 2 / (p1' x ** 2 + p2' x ** 2)
-    let w2' x = p2' x ** 2 / (p1' x ** 2 + p2' x ** 2)
-    xs <- replicateM n $ randomRIO (a, b)
-    return $ (\(sum1, sum2) -> (sum1 / fromIntegral n, sum2 / fromIntegral n)) $ foldl (\(old1, old2) x -> (old1 + w1 x * f x / p1' x + w2 x * f x / p2' x, old2 + w1' x * f x / p1' x + w2' x * f x / p2' x)) (0, 0) xs
+    let wlin p x = p x / (p1' x + p2' x)
+    let wsqr p x = p x ** 2 / (p1' x ** 2 + p2' x ** 2)
+    taus <- replicateM n $ randomRIO (0 :: Double, 1)
+    return $
+        (\(a1, a2) -> (a1 / fromIntegral n, a2 / fromIntegral n)) $
+            foldl
+                ( \(acc1, acc2) t ->
+                    ( acc1 + wlin p1' t * f (xi p1 t) / p1' (xi p1 t) + wlin p2' t * f (xi p2 t) / p2' (xi p2 t)
+                    , acc2 + wsqr p1' t * f (xi p1 t) / p1' (xi p1 t) + wsqr p2' t * f (xi p2 t) / p2' (xi p2 t)
+                    )
+                )
+                (0, 0)
+                taus
 
 russianRoulette :: (Double -> Double) -> (Double, Double) -> Double -> Int -> IO Double
 russianRoulette f (a, b) prob n = do

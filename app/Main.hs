@@ -73,6 +73,7 @@ main = do
         )
         ns
 
+    putStrLn ""
     putStrLn "Russian Roulette Monte Carlo"
     putStrLn "Размрер выборки | Отсечка | Расчитанное значение интеграла | Абсолютная ошибка | Оценка погрешности"
     mapM_
